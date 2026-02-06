@@ -1,3 +1,5 @@
+# Los ejercicios de BlackList y Busy_Wait están añadidos como archivos de tipo zip. Las respuestas de todo están en el archivo Answers.md
+
 
 # ARSW — (Java 21): **Immortals & Synchronization** — con UI Swing
 
