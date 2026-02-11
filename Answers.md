@@ -26,6 +26,7 @@ Para una correcta implementación lo que se debe de hacer es usar el modo `monit
 
 **Comportamiento:**  
 Dado que el consumidor es más rápido, la cola estará frecuentemente vacía. En `BoundedBuffer`, el método `take()` evalúa `while (q.isEmpty()) { this.wait(); }`, de tal forma que al ejecutar `wait(), el hilo del consumidor libera el bloqueo y el sistema operativo lo pasa a estado WAITING, reduciendo el consumo de CPU a niveles bajos mientras se espera que el productor inserte un nuevo elemento.
+![Spin2.png](Images/Spin2.png)
 
 ### 3. Implementación Eficiente. Consumidor Lento y Productor Rápido
 Para este punto se vuelve a hacer uso del modo `monitor` para así implementar la clase `BoundedBuffer`, ya que mediante el método `put` se garantiza que se respete el límite del stock de la cola.
@@ -33,4 +34,7 @@ Para este punto se vuelve a hacer uso del modo `monitor` para así implementar l
 **Comportamiento:**  
 Se incluye la condición de guardia `while (q.size() == capacity) { this.wait(); }`, de tal forma que se bloquea al productor cuando la cola alcanza su capacidad máxima definida.
 Lo anterior implica el que productor rápido entra en estado de espera tan pronto se llena el buffer, deteniendo su ejecución y el consumo de CPU hasta que el consumidor lento libere espacio y notifique el cambio (`notifyAll()`).
+![Monitor1.png](Images/Monitor1.png)
 
+---
+## Parte 2. Búsqueda distribuida y condición de parada
