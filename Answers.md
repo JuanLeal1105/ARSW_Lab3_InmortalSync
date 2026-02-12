@@ -76,3 +76,72 @@ for (int i = start; i < end; i++) {
 ---
 
 ## Parte 3. Sincronización y Deadlocks con Highlander Simulator
+### Punto 1. Invariante
+El invariante del sistema establece que el estado global de la simulación debe cumplir un comportamiento constante. De acuerdo al sistema, la salud total acumulada de todos los inmortales debe permanecer constante en el tiempo, independientemente de las transacciones (peleas) que ocurran entre ellos.
+
+**Cálculo de Valor para Validación**  
+Para una ejecución estándar con la configuración por defecto observada se tiene:
+- Población (N): 8 Inmortales
+- Salud Inicial (H): 100 puntos de vida.
+- Valor del Invariante: 800 puntos de vida totales.
+
+Cualquier validación mediante el mecanismo de "Pause & Check" debe arrojar exactamente 800 para considerar que el sistema es consistente.
+
+### Punto 2. Validación Pause & Check. ¿Se cumple el Invariante?
+Luego del análisis de los registros de ejecución, se ve evidenciada una violación crítica sobre el invariante en ambos modos de ejecución (Naive y Ordered). A continuación tenemos los resultados:
+- **Modo Naive**
+
+  Immortal-0     :     0
+  
+  Immortal-1     :     0
+
+  Immortal-2     :     0
+
+  Immortal-3     :     0
+
+  Immortal-4     :    -5
+
+  Immortal-5     :    15
+
+  Immortal-6     :     0
+
+  Immortal-7     :     0
+
+  Total Health: 10
+
+  Score (fights): 158
+
+- **Modo Ordered**
+  
+  Immortal-0     :     0
+
+  Immortal-1     :    -5
+
+  Immortal-2     :    -5
+
+  Immortal-3     :     0
+
+  Immortal-4     :    -5
+
+  Immortal-5     :     0
+
+  Immortal-6     :    -5
+
+  Immortal-7     :    50
+
+  Total Health: 30
+
+  Score (fights): 154
+
+**Cálculo de Valor para Validación**  
+Los resultados obtenidos (`Total Health`: 30 y `Total Health`: 10) evidencian un defecto en la lógica de negocio y no simplemente un error de concurrencia. El sistema se comporta como un juego de suma negativa, donde la energía se destruye sistemáticamente en cada interacción.
+Este fallo se valida con los datos obtenidos de la sigueinte forma:
+1. Mecanismo del Error: El código actual sustrae el daño completo a la víctima pero solo adiciona la mitad de dicho valor al atacante. Esto genera una pérdida neta de 5 puntos por pelea (asumiendo daño base de 10).
+2. Correlación con los Datos:
+   - Ejecución Naive: Con 158 peleas registradas, la pérdida calculada es de 790 puntos. Al restar esto del valor inicial (800), el resultado teórico es 10, lo cual coincide exactamente con el valor reportado por la UI.
+   - Ejecución Ordered: Con 154 peleas, la pérdida calculada es de 770 puntos. El remanente teórico es 30, coincidiendo nuevamente con el reporte.
+
+**Conclusión**  
+El invariante no se cumple debido a una implementación incorrecta en la transferencia de atributos (bug lógico), lo que impide validar problemas de concurrencia (como condiciones de carrera en la lectura) hasta que este defecto funcional sea corregido.
+
+### Punto 3. Pausa Correcta 
