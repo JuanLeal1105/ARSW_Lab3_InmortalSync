@@ -144,4 +144,61 @@ Este fallo se valida con los datos obtenidos de la sigueinte forma:
 **Conclusión**  
 El invariante no se cumple debido a una implementación incorrecta en la transferencia de atributos (bug lógico), lo que impide validar problemas de concurrencia (como condiciones de carrera en la lectura) hasta que este defecto funcional sea corregido.
 
-### Punto 3. Pausa Correcta 
+### Punto 3. Pausa Correcta e Invariante
+Para lograr la pausa correcta al momento de iniciar la simulación se implementó un mecanismo de suspensión cooperativa mediante la clase PauseController.
+
+- **Mecanismo de Pausa:** Se utilizó un `ReentrantLock` y una `Condition` (`unpaused`). Cada hilo Immortal invoca el método `controller.awaitIfPaused()` al inicio de su ciclo `run()`. Si el flag `paused` es verdadero, el hilo entra en un estado de espera eficiente (sin consumo de CPU) hasta que el usuario presiona Resume, activando un `signalAll()`.
+- **¿Qué sucede con el invariante?**
+  Para que la salud total permanezca constante (N x H), se realizaron dos ajustes importantes:
+  - **Transferencia 1 a 1:** Se corrigió la lógica de combate para que sea un "juego de suma cero". El atacante drena una cantidad de vida que es sumada exactamente igual a su propia salud, evitando la pérdida o creación de vida en el sistema.
+  - **Consistencia en el Reporte:** La pausa garantiza que todos los hilos se detengan fuera de la región crítica de combate. Esto permite que el método totalHealth() sume la vida de todos los inmortales de forma estática, asegurando que el resultado sea siempre el valor inicial esperado (ej. 800 HP para 8 inmortales).
+
+### Punto 4. Sincronización para Evitar Condiciones de Carrera
+Para evitar que múltiples hilos modifiquen la salud de un inmortal al mismo tiempo (lo que causaría que la vida total se corrompiera), se sincronizaron las secciones de combate:
+
+- **Región Crítica:** Se identificó que el acceso y modificación de `health` en cada instancia de `Immortal` debía ser atómico.
+- **Mecanismo:** Se implementaron bloques `synchronized` que envuelven la lógica de la pelea. Al pelear, el hilo adquiere los monitores de los dos inmortales involucrados.
+- **Visibilidad:** El método `getHealth()` se marcó como `synchronized` para asegurar que el hilo de la interfaz gráfica (UI) obtenga el valor más reciente almacenado en la memoria principal y no una copia local del hilo.
+
+### Punto 5. Diagnóstico de Deadlock (Modo Naive)
+Al configurar la simulación con N=100 y Damage=100 en modo naive, la aplicación experimentó un bloqueo total.
+- **Síntomas:** El contador de batallas se detuvo y el botón de "Resume" dejó de funcionar, ya que los hilos quedaron atrapados en un monitor y nunca regresaron al punto de control de pausa.
+- **Uso de jps y jstack:** Se identificó el PID con `jps -l` y se analizó con `jstack`. El diganostico en el Log fue bastante extenso, sin embargo luedo de hacer un grep para el Java - Level deadlock se obtuvo:
+  ```
+   Found one Java-level deadlock:
+   =============================
+   "Immortal-1":
+     waiting to lock monitor 0x000... (object 0x000..., a Immortal),
+     which is held by "Immortal-0"
+   "Immortal-0":
+     waiting to lock monitor 0x000... (object 0x000..., a Immortal),
+     which is held by "Immortal-1"
+  ```
+Este volcado confirma la Espera Circular, donde el hilo A tiene el candado de A y pide el de B, mientras B tiene el de B y pide el de A.
+
+### Punto 6. Estrategia de Corrección: Ordenamiento por Nombres
+Para solucionar el deadlock, se implementó una estrategia de Orden Total o Jerarquía de Recursos:
+- **Lógica:** En lugar de bloquear los objetos según quién ataque a quién, los hilos comparan los nombres de los inmortales involucrados (`this.name.compareTo(other.name)`).
+- **Implementación:** El código garantiza que, sin importar quién sea el atacante, siempre se intentará obtener primero el monitor del inmortal cuyo nombre sea menor alfabéticamente.
+- **Resultado:** Si dos inmortales intentan pelear entre sí simultáneamente, ambos intentarán adquirir los bloqueos en el mismo orden exacto. Uno ganará el primer bloqueo y el otro esperará sin retener el recurso que el primero necesita, rompiendo así el ciclo de espera.
+
+### Punto 7. Remover los Inmortales Muertos
+Se implementó el método `pruneDead()` para limpiar la población sin corromper las estadísticas:
+- **Limpieza Sincronizada:** Se utiliza `population.removeIf` dentro de un bloque `synchronized` sobre la lista de población para evitar errores de modificación concurrente.
+- **Contador de Muertos:** Para no perder el rastro de cuántos han caído, se implementó una variable `historicalDeadCounter`. Antes de remover a los inmortales, se calcula cuántos serán eliminados y se suma a este contador acumulativo. Así, el reporte final puede mostrar Vivos + Muertos = N Inicial.
+
+### Punto 8. Implementación de STOP (Apagado Ordenado)
+El botón STOP asegura que la simulación termine de raíz y libere la memoria:
+- **Pausa y Confirmación:** El sistema se pausa y despliega un JOptionPane preguntando "¿Do you want to keep fighting?".
+- **Interrupción de Hilos:** Si el usuario elige "No", se cambia el flag running a false y se invoca executor.shutdownNow(). Esto envía una señal de interrupción a los hilos virtuales, sacándolos de cualquier estado de espera (sleep o await).
+- **Limpieza de Recursos:** Se limpian las listas de futuros y se anula el objeto manager, permitiendo que el Garbage Collector limpie los objetos de la simulación terminada.
+
+---
+
+## Validación Final de Resultados
+En pruebas de larga duración (más de 14,000 combates), se observó que el sistema converge a un estado de equilibrio cuando quedan pocos inmortales. 
+- **Consistencia:** El `Total Health` se mantuvo inalterado en 800 unidades, validando el éxito de la sincronización.
+- **Estadísticas Históricas:** Gracias al contador implementado, el sistema reporta correctamente 2 vivos y 6 muertos (Total = 8 inmortales iniciales), demostrando que la remoción de objetos (`pruneDead`) no afecta la trazabilidad de la simulación.
+
+---
+## Pruebas de JUnit
