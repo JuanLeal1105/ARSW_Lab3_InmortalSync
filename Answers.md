@@ -204,3 +204,54 @@ En pruebas de larga duración (más de 14,000 combates), se observó que el sist
 
 ---
 ## Pruebas de JUnit
+Las pruebas unitarias desarrolladas para el Highlander Simulator no solo verifican que el código funcione, sino que validan los principios de concurrencia y seguridad de hilos (thread-safety) requeridos en la arquitectura.
+
+### 1. Validación del Invariante Global  
+**Prueba:** `shouldMaintainHealthInvariant`
+
+**Justificación:**  
+En un sistema distribuido o concurrente, un *invariante* es una condición que debe cumplirse siempre. Si la salud total cambia, significa que hay una fuga de datos o una condición de carrera en la transferencia.
+
+**Propósito:**  
+Confirmar que la sincronización en los métodos de combate (`synchronized`) es atómica y que la lógica de negocio (transferencia 1:1) es correcta bajo estrés.
+
+### 2. Suspensión Cooperativa y Control de Estado  
+**Prueba:** `shouldStopThreadsWhenPaused`
+
+**Justificación:**  
+La pausa en sistemas multihilo es compleja porque un hilo no puede ser detenido a la fuerza sin riesgo de corromper datos.
+
+**Propósito:**  
+Validar que los hilos respetan el protocolo de comunicación del `PauseController`. Si el número de batallas aumenta después de la pausa, la suspensión cooperativa ha fallado, lo que invalidaría cualquier reporte de estado.
+
+### 3. Prueba de Vitalidad (Liveness) y Deadlocks  
+**Prueba:** `shouldNotDeadlockInOrderedMode`
+
+**Justificación:**  
+El peor enemigo de la concurrencia es el *deadlock*. Un sistema puede ser *thread-safe* pero quedar inútil si los hilos se bloquean entre sí.
+
+**Propósito:**  
+Demostrar empíricamente que la estrategia de ordenamiento jerárquico de recursos (bloqueo por nombres) rompe la espera circular. La prueba asegura que el sistema siempre progresa (*liveness*).
+
+### 4. Integridad de la Población Dinámica  
+**Pruebas:**  
+- `shouldPruneDeadAndMaintainHistoricalCount`  
+- `shouldBeRobustAgainstFrequentPruning`
+
+**Justificación:**  
+Al eliminar objetos de una lista compartida (`pruneDead`), es fácil perder la trazabilidad de los datos o generar excepciones de modificación concurrente.
+
+**Propósito:**  
+Garantizar que el uso de `Collections.synchronizedList` y los bloques de código sincronizados permiten modificar la población en caliente sin perder el conteo histórico. Asegura que **Vivos + Muertos = N Inicial** en todo momento.
+
+### 5. Escalabilidad con Hilos Virtuales (Stress Testing)  
+**Prueba:** `shouldHandleMassiveConcurrency`
+
+**Justificación:**  
+La arquitectura utiliza hilos virtuales de Java 21, diseñados para manejar miles de tareas concurrentes.
+
+**Propósito:**  
+Verificar que los cuellos de botella (los monitores `synchronized`) no degradan el rendimiento al punto de detener la simulación y que el sistema soporta una carga masiva de colisiones sin corromper el invariante de salud.
+
+
+
