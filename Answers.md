@@ -4,6 +4,8 @@
 
 Juan Carlos Leal Cruz
 
+Sebastián Julián Villarraga Guerrero
+
 ## Parte 1. Wait/notify: Productor/Consumidor
 
 ### 1. Ejecución y monitoreo de CPU (Alto Consumo)
