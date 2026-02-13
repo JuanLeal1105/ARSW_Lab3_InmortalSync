@@ -75,6 +75,10 @@ for (int i = start; i < end; i++) {
     // ... lógica de búsqueda ...
 }
 ```
+### Evidencia Cambios
+En la sigueinte imagen se evidencia que ya no es necesario recorrer todas las listas para poder garantizar que una IP no es de confianza, comprobando así que el contador de ocurrencias en efecto está sirviendo para evitar que los hilos trabajen de más sin necesidad.
+![BlackList.png](Images/BlackList.png)
+
 ---
 
 ## Parte 3. Sincronización y Deadlocks con Highlander Simulator
@@ -253,5 +257,10 @@ La arquitectura utiliza hilos virtuales de Java 21, diseñados para manejar mile
 **Propósito:**  
 Verificar que los cuellos de botella (los monitores `synchronized`) no degradan el rendimiento al punto de detener la simulación y que el sistema soporta una carga masiva de colisiones sin corromper el invariante de salud.
 
+
+### Evidencias de las Pruebas
+A continuación tenemos la prueba de que las pruebas fueron realizadas. La primera imagen corresponde a la implementación de las pruebas desde IntelliJ y la segunda al resultado del comando `mvn clean test`:
+![Regular.png](Images/Regular.png)
+![Test.png](Images/Test.png)
 
 
