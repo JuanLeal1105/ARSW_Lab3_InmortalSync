@@ -2,14 +2,12 @@ package edu.eci.arsw.highlandersim;
 
 import edu.eci.arsw.immortals.Immortal;
 import edu.eci.arsw.immortals.ImmortalManager;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.List;
 
 public final class ControlFrame extends JFrame {
-
   private ImmortalManager manager;
   private final JTextArea output = new JTextArea(14, 40);
   private final JButton startBtn = new JButton("Start");
@@ -25,7 +23,7 @@ public final class ControlFrame extends JFrame {
   public ControlFrame(int count, String fight) {
     setTitle("Highlander Simulator — ARSW");
     setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-    setLayout(new BorderLayout(8,8));
+    setLayout(new BorderLayout(8, 8));
 
     JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
     top.add(new JLabel("Count:"));
@@ -67,46 +65,61 @@ public final class ControlFrame extends JFrame {
     int health = (Integer) healthSpinner.getValue();
     int damage = (Integer) damageSpinner.getValue();
     String fight = (String) fightMode.getSelectedItem();
+    System.setProperty("fight", fight);
     manager = new ImmortalManager(n, fight, health, damage);
     manager.start();
-    output.setText("Simulation started with %d immortals (health=%d, damage=%d, fight=%s)%n"
-      .formatted(n, health, damage, fight));
+    output.setText("Started: %d immortals, %d health, %d damage\n".formatted(n, health, damage));
   }
 
   private void onPauseAndCheck(ActionEvent e) {
     if (manager == null) return;
     manager.pause();
-    List<Immortal> pop = manager.populationSnapshot();
-    long sum = 0;
+
+    List<Immortal> snapshot = manager.populationSnapshot();
+    int vivos = manager.aliveCount();
+    int muertos = manager.deadCount();
+    long saludTotal = manager.totalHealth();
+    long numBatallas = manager.scoreBoard().totalFights();
+
     StringBuilder sb = new StringBuilder();
-    for (Immortal im : pop) {
-      int h = im.getHealth();
-      sum += h;
-      sb.append(String.format("%-14s : %5d%n", im.name(), h));
+    sb.append("--- SNAPSHOT ---\n");
+    for (Immortal im : snapshot) {
+      sb.append(String.format("%-14s : %5d HP%n", im.name(), im.getHealth()));
     }
     sb.append("--------------------------------\n");
-    sb.append("Total Health: ").append(sum).append('\n');
-    sb.append("Score (fights): ").append(manager.scoreBoard().totalFights()).append('\n');
+    sb.append(String.format("Total Health  : %d%n", saludTotal));
+    sb.append(String.format("Battles     : %d%n", numBatallas));
+    sb.append(String.format("Alive        : %d%n", vivos));
+    sb.append(String.format("Death     : %d%n", muertos));
+    sb.append("--------------------------------\n");
     output.setText(sb.toString());
+
+    manager.pruneDead();
   }
 
   private void onResume(ActionEvent e) {
-    if (manager == null) return;
-    manager.resume();
+    if (manager != null) manager.resume();
   }
 
-  private void onStop(ActionEvent e) { safeStop(); }
+  private void onStop(ActionEvent e) {
+    if (manager == null) return;
+    manager.pause();
+    int option = javax.swing.JOptionPane.showConfirmDialog(
+            this, "¿Do you want to keep fighting?", "Confirm Exit",
+            javax.swing.JOptionPane.YES_NO_OPTION);
+
+    if (option == javax.swing.JOptionPane.NO_OPTION) {
+      safeStop();
+      output.setText("Simulation Ended.");
+    } else {
+      manager.resume();
+    }
+  }
 
   private void safeStop() {
     if (manager != null) {
       manager.stop();
       manager = null;
     }
-  }
-
-  public static void main(String[] args) {
-    int count = Integer.getInteger("count", 8);
-    String fight = System.getProperty("fight", "ordered");
-    SwingUtilities.invokeLater(() -> new ControlFrame(count, fight));
   }
 }

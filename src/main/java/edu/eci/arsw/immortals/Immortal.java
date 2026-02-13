@@ -1,7 +1,6 @@
 package edu.eci.arsw.immortals;
 
 import edu.eci.arsw.concurrency.PauseController;
-
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
@@ -27,18 +26,24 @@ public final class Immortal implements Runnable {
   public String name() { return name; }
   public synchronized int getHealth() { return health; }
   public boolean isAlive() { return getHealth() > 0 && running; }
-  public void stop() { running = false; }
+  public void stop() { this.running = false; }
 
-  @Override public void run() {
+  @Override
+  public void run() {
     try {
       while (running) {
         controller.awaitIfPaused();
         if (!running) break;
-        var opponent = pickOpponent();
-        if (opponent == null) continue;
-        String mode = System.getProperty("fight", "ordered");
-        if ("naive".equalsIgnoreCase(mode)) fightNaive(opponent);
-        else fightOrdered(opponent);
+
+        Immortal opponent = pickOpponent();
+        if (opponent != null) {
+          String mode = System.getProperty("fight", "ordered");
+          if ("naive".equalsIgnoreCase(mode)) {
+            fightNaive(opponent);
+          } else {
+            fightOrdered(opponent);
+          }
+        }
         Thread.sleep(2);
       }
     } catch (InterruptedException ie) {
@@ -55,26 +60,32 @@ public final class Immortal implements Runnable {
     return other;
   }
 
-  private void fightNaive(Immortal other) {
-    synchronized (this) {
-      synchronized (other) {
-        if (this.health <= 0 || other.health <= 0) return;
-        other.health -= this.damage;
-        this.health += this.damage / 2;
-        scoreBoard.recordFight();
+  private void fightOrdered(Immortal other) {
+    Immortal first = this.name.compareTo(other.name) < 0 ? this : other;
+    Immortal second = this.name.compareTo(other.name) < 0 ? other : this;
+
+    synchronized (first) {
+      synchronized (second) {
+        if (this.health > 0 && other.health > 0) {
+          int actualDamage = Math.min(other.health, this.damage);
+
+          other.health -= actualDamage;
+          this.health += actualDamage;
+          scoreBoard.recordFight();
+        }
       }
     }
   }
 
-  private void fightOrdered(Immortal other) {
-    Immortal first = this.name.compareTo(other.name) < 0 ? this : other;
-    Immortal second = this.name.compareTo(other.name) < 0 ? other : this;
-    synchronized (first) {
-      synchronized (second) {
-        if (this.health <= 0 || other.health <= 0) return;
-        other.health -= this.damage;
-        this.health += this.damage / 2;
-        scoreBoard.recordFight();
+  private void fightNaive(Immortal other) {
+    synchronized (this) {
+      synchronized (other) {
+        if (this.health > 0 && other.health > 0) {
+          int actualDamage = Math.min(other.health, this.damage);
+          other.health -= actualDamage;
+          this.health += actualDamage;
+          scoreBoard.recordFight();
+        }
       }
     }
   }

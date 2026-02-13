@@ -10,11 +10,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public final class ImmortalManager implements AutoCloseable {
-  private final List<Immortal> population = new ArrayList<>();
+  private final List<Immortal> population = Collections.synchronizedList(new ArrayList<>());
   private final List<Future<?>> futures = new ArrayList<>();
   private final PauseController controller = new PauseController();
   private final ScoreBoard scoreBoard = new ScoreBoard();
   private ExecutorService exec;
+  private int historicalDeadCounter = 0;
+
 
   private final String fightMode;
   private final int initialHealth;
@@ -43,21 +45,50 @@ public final class ImmortalManager implements AutoCloseable {
 
   public void pause() { controller.pause(); }
   public void resume() { controller.resume(); }
+
   public void stop() {
+    controller.resume();
     for (Immortal im : population) im.stop();
-    if (exec != null) exec.shutdownNow();
+    if (exec != null) {
+      exec.shutdownNow();
+      exec = null;
+    }
+    futures.clear();
   }
 
   public int aliveCount() {
     int c = 0;
-    for (Immortal im : population) if (im.isAlive()) c++;
+    for (Immortal im : population) {
+      if (im.isAlive()) c++;
+    }
     return c;
+  }
+  public int deadCount() {
+    synchronized (population) {
+      int deadInList = 0;
+      for (Immortal im : population) {
+        if (im.getHealth() <= 0) deadInList++;
+      }
+      return historicalDeadCounter + deadInList;
+    }
   }
 
   public long totalHealth() {
     long sum = 0;
-    for (Immortal im : population) sum += im.getHealth();
+    for (Immortal im : population) {
+      sum += im.getHealth();
+    }
     return sum;
+  }
+
+  public void pruneDead() {
+    synchronized (population) {
+      int before = population.size();
+      population.removeIf(im -> im.getHealth() <= 0);
+      int after = population.size();
+
+      historicalDeadCounter += (before - after);
+    }
   }
 
   public List<Immortal> populationSnapshot() {
